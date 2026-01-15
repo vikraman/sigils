@@ -40,7 +40,7 @@ indTree σ V P var* node* (node (o , g)) = node* (o , g) (indTree σ V P var* no
 recTree : (σ : Sig) (V : Type) (P : Type)
        → (var* : (v : V) → P)
        → (node* : ((o , f) : SigF σ (Tree σ V)) → ((a : σ .ar o) → P) → P)
-       → (t : Tree σ V) → P
+       → (Tree σ V) → P
 recTree σ V P = indTree σ V (λ _ → P)
 
 TreeAlg : ∀ σ V → Alg σ
@@ -68,7 +68,37 @@ data Free (σ : Sig) (ε : EqSig) (τ : SysEq σ ε) (A : Type) : Type where
   node : SigF σ (Free σ ε τ A) → Free σ ε τ A
   sat : (e : ε .eq) (ρ : ε .fv e → Free σ ε τ A)
     → recTree σ (ε .fv e) (Free σ ε τ A) ρ (λ { (o , g) r → node (o , r) }) (τ e .fst)
-     ≡ recTree σ (ε .fv e) (Free σ ε τ A) ρ (λ { (o , g) r → node (o , r) }) (τ e .snd)
+    ≡ recTree σ (ε .fv e) (Free σ ε τ A) ρ (λ { (o , g) r → node (o , r) }) (τ e .snd)
+
+indFree : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (𝔅 : Alg σ) (P : Free σ ε τ A → Type)
+    → (var* : (a : A) → P (var a))
+    → (node* : ((o , f) : SigF σ (Free σ ε τ A)) → ((a : σ .ar o) → P (f a)) → P (node (o , f)))
+    → (sat* : (e : ε .eq) → (ρ : ε .fv e → Free σ ε τ A)
+        → PathP (λ i → P (sat e ρ i))
+                (recTree σ (ε .fv e) (P {!  !}) {!   !} {!   !} {!   !})
+                (recTree σ (ε .fv e) {!   !} {!   !} {!   !} {!   !}))
+    → (t : Free σ ε τ A) → P t
+indFree = {!   !}
+
+recFree : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (P : Type)
+    → (var* : (a : A) → P)
+    → (node* : ((o , f) : SigF σ P) → P)
+    → (sat* : (e : ε .eq) → (ρ : ε .fv e → P)
+        → recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .fst)
+        ≡ recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .snd))
+    → (Free σ ε τ A) → P
+recFree P var* node* sat* (var x) = var* x
+recFree P var* node* sat* (node (o , g)) = node* (o , λ x → recFree P var* node* sat* (g x))
+recFree P var* node* sat* (sat e ρ i) = sat* e (λ x → recFree P var* node* sat* (ρ x)) {!   !}
+
+_♯ : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (𝔅 : Alg σ) (p : 𝔅 ⊨ τ) → (A → 𝔅 .car) → (Free σ ε τ A → 𝔅 .car)
+_♯ 𝔅 p f (var x) = f x
+_♯ 𝔅 p f (node (o , g)) = 𝔅 .alg (o , λ x → (_♯ 𝔅 p f) (g x))
+_♯ 𝔅 p f (sat e ρ i) = {! p e (λ x → (_♯ 𝔅 p f) (ρ x)) !}
+
+-- -----------------------------------------------------------------------------
+-- Monoid example
+-- -----------------------------------------------------------------------------
 
 data MonOp : Type where
   `unit `mult : MonOp
@@ -104,7 +134,6 @@ MonSysEq `unitl =
 
 FreeMon : Type → Type
 FreeMon A = Free MonSig MonEqSig MonSysEq A
-
 variable
   A : Type
 
