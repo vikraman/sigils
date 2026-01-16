@@ -70,31 +70,72 @@ data Free (σ : Sig) (ε : EqSig) (τ : SysEq σ ε) (A : Type) : Type where
     → recTree σ (ε .fv e) (Free σ ε τ A) ρ (λ { (o , g) r → node (o , r) }) (τ e .fst)
     ≡ recTree σ (ε .fv e) (Free σ ε τ A) ρ (λ { (o , g) r → node (o , r) }) (τ e .snd)
 
-indFree : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (𝔅 : Alg σ) (P : Free σ ε τ A → Type)
-    → (var* : (a : A) → P (var a))
-    → (node* : ((o , f) : SigF σ (Free σ ε τ A)) → ((a : σ .ar o) → P (f a)) → P (node (o , f)))
-    → (sat* : (e : ε .eq) → (ρ : ε .fv e → Free σ ε τ A)
-        → PathP (λ i → P (sat e ρ i))
-                (recTree σ (ε .fv e) (P {!  !}) {!   !} {!   !} {!   !})
-                (recTree σ (ε .fv e) {!   !} {!   !} {!   !} {!   !}))
-    → (t : Free σ ε τ A) → P t
-indFree = {!   !}
+-- indFree : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (𝔅 : Alg σ) (P : Free σ ε τ A → Type)
+--     → (var* : (a : A) → P (var a))
+--     → (node* : ((o , f) : SigF σ (Free σ ε τ A)) → ((a : σ .ar o) → P (f a)) → P (node (o , f)))
+--     → (sat* : (e : ε .eq) → (ρ : ε .fv e → Free σ ε τ A)
+--         → PathP (λ i → P (sat e ρ i))
+--                 (recTree σ (ε .fv e) (P {!   !}) {!   !} {!   !} {!   !})
+--                 (recTree σ (ε .fv e) (P {!   !}) {!   !} {!   !} {!   !}))
+--     → (t : Free σ ε τ A) → P t
+-- indFree = {!   !}
 
-recFree : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (P : Type)
-    → (var* : (a : A) → P)
-    → (node* : ((o , f) : SigF σ P) → P)
-    → (sat* : (e : ε .eq) → (ρ : ε .fv e → P)
-        → recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .fst)
-        ≡ recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .snd))
-    → (Free σ ε τ A) → P
-recFree P var* node* sat* (var x) = var* x
-recFree P var* node* sat* (node (o , g)) = node* (o , λ x → recFree P var* node* sat* (g x))
-recFree P var* node* sat* (sat e ρ i) = sat* e (λ x → recFree P var* node* sat* (ρ x)) {!   !}
+algHomNat : {A : Type} {σ : Sig} (P : Type)
+    → (varP : (a : A) → P)
+    → (nodeP : (SigF σ P) → P)
+    (Q : Type)
+    → (varQ : (a : A) → Q)
+    → (nodeQ : (SigF σ Q) → Q)
+    → (f : Q → P) → (((o , g) : SigF σ Q) → f (nodeQ (o , g)) ≡ nodeP ((o , λ y → f (g y) )) )
+    → (X : Type) → (ρ : X → Q) → (t : Tree σ X)
+    → f (recTree σ X Q ρ (λ { (o , g) r → nodeQ (o , r) }) t)
+    ≡ recTree σ X P (λ x → f (ρ x)) (λ { (o , g) r → nodeP (o , r) }) t
+algHomNat P varP nodeP Q varQ nodeQ f hom X ρ (var x) = refl
+algHomNat {σ = σ} P varP nodeP Q varQ nodeQ f hom X ρ (node x)
+    = hom (x .fst , (λ x₁ → recTree σ X Q ρ (λ { (o , g) r → nodeQ (o , r) })
+        (x .snd x₁))) ∙ cong (λ z → nodeP (x .fst , z)) (funExt (λ y → algHomNat P varP nodeP Q varQ nodeQ f hom X ρ (x .snd y)))
 
-_♯ : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (𝔅 : Alg σ) (p : 𝔅 ⊨ τ) → (A → 𝔅 .car) → (Free σ ε τ A → 𝔅 .car)
-_♯ 𝔅 p f (var x) = f x
-_♯ 𝔅 p f (node (o , g)) = 𝔅 .alg (o , λ x → (_♯ 𝔅 p f) (g x))
-_♯ 𝔅 p f (sat e ρ i) = {! p e (λ x → (_♯ 𝔅 p f) (ρ x)) !}
+
+
+mutual
+    recFree : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (P : Type)
+        → (var* : (a : A) → P)
+        → (node* : ((o , f) : SigF σ P) → P)
+        → (sat* : (e : ε .eq) → (ρ : ε .fv e → P)
+            → recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .fst)
+            ≡ recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .snd))
+        → (Free σ ε τ A) → P
+    recFree P var* node* sat* (var x) = var* x
+    recFree P var* node* sat* (node (o , g)) = node* (o , λ x → recFree P var* node* sat* (g x))
+    recFree {A = A} {σ = σ} {ε = ε} {τ = τ} P var* node* sat* (sat e ρ i)
+        = (algHomNat P var* node* (Free σ ε τ A) var node
+            (recFree P var* node* sat*) (λ y → {!  !}) (ε .fv e) ρ (τ e .fst)
+            ∙ sat* e (λ y → recFree P var* node* sat* (ρ y))
+            ∙ sym (algHomNat P var* node* (Free σ ε τ A) var node
+            (recFree P var* node* sat*) (λ y → {!  !}) (ε .fv e) ρ (τ e .snd))) i
+        -- = (lemma P var* node* sat* (ε .fv e) ρ (τ e .fst)
+        --     ∙ sat* e (λ y → recFree P var* node* sat* (ρ y))
+            -- ∙ sym (lemma P var* node* sat* (ε .fv e) ρ (τ e .snd))) i
+
+
+    -- lemma : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (P : Type)
+    --     → (var* : (a : A) → P)
+    --     → (node* : (SigF σ P) → P)
+    --     → (sat* : (e : ε .eq) → (ρ : ε .fv e → P)
+    --         → recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .fst)
+    --         ≡ recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .snd))
+    --     → (X : Type) → (ρ : X → Free σ ε τ A) → (y : Tree σ X)
+    --     → recFree P var* node* sat* (recTree σ X (Free σ ε τ A) ρ (λ { (o , g) r → node (o , r) }) y)
+    --     ≡ recTree σ X P (λ x → recFree P var* node* sat* (ρ x)) (λ { (o , g) r → node* (o , r) }) y
+    -- lemma P var* node* sat* X ρ (var x) = refl
+    -- lemma P var* node* sat* X ρ (node x) = cong (λ z → node* (x .fst , z)) (funExt (λ y → lemma P var* node* sat* X ρ (x .snd y)))
+
+{-
+
+-- _♯ : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (𝔅 : Alg σ) (p : 𝔅 ⊨ τ) → (A → 𝔅 .car) → (Free σ ε τ A → 𝔅 .car)
+-- _♯ 𝔅 p f (var x) = f x
+-- _♯ 𝔅 p f (node (o , g)) = 𝔅 .alg (o , λ x → (_♯ 𝔅 p f) (g x))
+-- _♯ 𝔅 p f (sat e ρ i) = {! p e (λ x → (_♯ 𝔅 p f) (ρ x)) !}
 
 -- -----------------------------------------------------------------------------
 -- Monoid example
@@ -161,3 +202,6 @@ assoc m n o =
     congS (λ z → node (`mult , z)) (funExt λ { (inl _) → congS (λ z → node (`mult , z)) (funExt λ { (inl _) → refl ; (inr _) → refl }) ; (inr _) → refl })
   ∙ sat `assoc (λ { (inl _) → m ; (inr (inl _)) → n ; (inr (inr _)) → o })
   ∙ congS (λ z → node (`mult , z)) (funExt λ { (inl x) → refl ; (inr x) → congS (λ z → node (`mult , z)) (funExt (λ { (inl _) → refl ; (inr _) → refl })) })
+
+
+-}
