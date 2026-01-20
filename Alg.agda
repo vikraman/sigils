@@ -5,9 +5,10 @@ module Alg where
 open import Cubical.Foundations.Prelude
 open import Cubical.Foundations.Function
 open import Cubical.Data.Sigma
-open import Cubical.Data.Sum
+open import Cubical.Data.Sum as S
 open import Cubical.Data.Unit
 open import Cubical.Data.Empty
+open import Cubical.Induction.WellFounded
 
 record Sig : Type₁ where
   constructor [_,_]
@@ -97,22 +98,54 @@ algHomNat {σ = σ} P varP nodeP Q varQ nodeQ f hom X ρ (node x)
 
 
 
-mutual
-    recFree : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (P : Type)
-        → (var* : (a : A) → P)
-        → (node* : ((o , f) : SigF σ P) → P)
-        → (sat* : (e : ε .eq) → (ρ : ε .fv e → P)
-            → recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .fst)
-            ≡ recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .snd))
-        → (Free σ ε τ A) → P
-    recFree P var* node* sat* (var x) = var* x
-    recFree P var* node* sat* (node (o , g)) = node* (o , λ x → recFree P var* node* sat* (g x))
-    recFree {A = A} {σ = σ} {ε = ε} {τ = τ} P var* node* sat* (sat e ρ i)
-        = (algHomNat P var* node* (Free σ ε τ A) var node
-            (recFree P var* node* sat*) (λ y → {!  !}) (ε .fv e) ρ (τ e .fst)
-            ∙ sat* e (λ y → recFree P var* node* sat* (ρ y))
-            ∙ sym (algHomNat P var* node* (Free σ ε τ A) var node
-            (recFree P var* node* sat*) (λ y → {!  !}) (ε .fv e) ρ (τ e .snd))) i
+
+-- recFree : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (P : Type)
+--     → (var* : (a : A) → P)
+--     → (node* : ((o , f) : SigF σ P) → P)
+--     → (sat* : (e : ε .eq) → (ρ : ε .fv e → P)
+--         → recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .fst)
+--         ≡ recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .snd))
+--     → (Free σ ε τ A) → P
+-- recFree P var* node* sat* (var x) = var* x
+-- recFree P var* node* sat* (node (o , g)) = node* (o , λ x → recFree P var* node* sat* (g x))
+-- recFree {A = A} {σ = σ} {ε = ε} {τ = τ} P var* node* sat* (sat e ρ i)
+--     = (algHomNat P var* node* (Free σ ε τ A) var node
+--         (recFree P var* node* sat*) (λ y → {!  !}) (ε .fv e) ρ (τ e .fst)
+--         ∙ sat* e (λ y → recFree P var* node* sat* (ρ y))
+--         ∙ sym (algHomNat P var* node* (Free σ ε τ A) var node
+--         (recFree P var* node* sat*) (λ y → {!  !}) (ε .fv e) ρ (τ e .snd))) i
+
+-- module _ {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} where
+
+--     data Subtree : Free σ ε τ A → Free σ ε τ A → Type where
+--         subtree : ∀ {o} {g} → ∀ x → Subtree (g x) (node (o , g))
+
+--     -- varSubtree : ∀ {x} {y} → Subtree y (var x) → ⊥
+--     -- varSubtree t = 
+
+--     isAcc : (t : Free σ ε τ A) → Acc Subtree t
+--     isAcc (var x) = acc λ y → {!   !}
+--     isAcc (node x) = {!   !}
+--     isAcc (sat e ρ i) = {!   !}
+
+
+
+-- mutual
+    -- recFree : {A : Type} {σ : Sig} {ε : EqSig} {τ : SysEq σ ε} (P : Type)
+    --     → (var* : (a : A) → P)
+    --     → (node* : ((o , f) : SigF σ P) → P)
+    --     → (sat* : (e : ε .eq) → (ρ : ε .fv e → P)
+    --         → recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .fst)
+    --         ≡ recTree σ (ε .fv e) P ρ (λ { (o , g) r → node* (o , r)}) (τ e .snd))
+    --     → (Free σ ε τ A) → P
+    -- recFree P var* node* sat* (var x) = var* x
+    -- recFree P var* node* sat* (node (o , g)) = node* (o , λ x → recFree P var* node* sat* (g x))
+    -- recFree {A = A} {σ = σ} {ε = ε} {τ = τ} P var* node* sat* (sat e ρ i)
+    --     = (algHomNat P var* node* (Free σ ε τ A) var node
+    --         (recFree P var* node* sat*) (λ y → {!  !}) (ε .fv e) ρ (τ e .fst)
+    --         ∙ sat* e (λ y → recFree P var* node* sat* (ρ y))
+    --         ∙ sym (algHomNat P var* node* (Free σ ε τ A) var node
+    --         (recFree P var* node* sat*) (λ y → {!  !}) (ε .fv e) ρ (τ e .snd))) i
         -- = (lemma P var* node* sat* (ε .fv e) ρ (τ e .fst)
         --     ∙ sat* e (λ y → recFree P var* node* sat* (ρ y))
             -- ∙ sym (lemma P var* node* sat* (ε .fv e) ρ (τ e .snd))) i
@@ -136,6 +169,9 @@ mutual
 -- _♯ 𝔅 p f (var x) = f x
 -- _♯ 𝔅 p f (node (o , g)) = 𝔅 .alg (o , λ x → (_♯ 𝔅 p f) (g x))
 -- _♯ 𝔅 p f (sat e ρ i) = {! p e (λ x → (_♯ 𝔅 p f) (ρ x)) !}
+
+
+-}
 
 -- -----------------------------------------------------------------------------
 -- Monoid example
@@ -170,7 +206,7 @@ MonSysEq `unitr =
     node (`mult , λ { (inl _) → var tt ; (inr _) → node (`unit , λ ()) }) 
   , var tt
 MonSysEq `unitl = 
-    node (`mult , λ { (inl _) → node (`unit , λ ()) ; (inr _) → var tt }) 
+    node (`mult , S.rec (λ _ → node (`unit , λ ())) (λ _ → var tt) ) 
   , var tt
 
 FreeMon : Type → Type
@@ -203,5 +239,28 @@ assoc m n o =
   ∙ sat `assoc (λ { (inl _) → m ; (inr (inl _)) → n ; (inr (inr _)) → o })
   ∙ congS (λ z → node (`mult , z)) (funExt λ { (inl x) → refl ; (inr x) → congS (λ z → node (`mult , z)) (funExt (λ { (inl _) → refl ; (inr _) → refl })) })
 
+evalFreeMon : {A : Type} (𝔅 : Alg MonSig) → (𝔅 ⊨ MonSysEq) → (A → 𝔅 .car) → FreeMon A → 𝔅 .car
+evalFreeMon 𝔅 s f (var x) = f x
+evalFreeMon 𝔅 s f (node (o , g)) = 𝔅 .alg (o , λ y → evalFreeMon 𝔅 s f (g y))
+evalFreeMon {A = A} 𝔅 s f (sat `assoc ρ i) = {!   !}
+evalFreeMon {A = A} 𝔅 s f (sat `unitl ρ i) = (congS (λ x → 𝔅 .alg (`mult , x)) (funExt λ {(inl y) → congS (λ x → 𝔅 .alg (`unit , x)) (funExt λ ()) ; (inr y) → refl}) ∙ s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt))) i
+    -- ({!   !} ∙ s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt))) i
+    -- where
+    --     lemma : 𝔅 .alg
+    --      (`mult ,
+    --       (λ y →
+    --          evalFreeMon 𝔅 s f
+    --          (indTree MonSig (MonEqSig .fv `unitl)
+    --           (λ _ → Free MonSig MonEqSig MonSysEq A) ρ
+    --           (λ { (o , g) r → node (o , r) })
+    --           (S.rec (λ z → node (`unit , (λ ()))) (λ _ → var tt) y))))
+    --         ≡ evalFreeMon 𝔅 s f (ρ tt)
+    --     lemma = cong (λ x → 𝔅 .alg (`mult , x)) (funExt λ
+    --         {(inl y) → cong (λ x → 𝔅 .alg (`unit , x)) (funExt λ ())
+    --         ; (inr y) → refl}) ∙ s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt))
 
--}
+        -- cong (λ x → 𝔅 .alg (`mult , x)) {!   !} ∙ s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt))
+evalFreeMon 𝔅 s f (sat `unitr ρ i) = {!   !}
+
+
+-- algHomNat
