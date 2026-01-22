@@ -1,4 +1,4 @@
-{-# OPTIONS --cubical --guardedness --safe #-}
+{-# OPTIONS --cubical --guardedness -WnoUnsupportedIndexedMatch #-}
 
 module Alg where
 
@@ -9,6 +9,64 @@ open import Cubical.Data.Sum as S
 open import Cubical.Data.Unit
 open import Cubical.Data.Empty
 open import Cubical.Induction.WellFounded
+open import Cubical.Data.FinData as F hiding (eq) 
+open import Cubical.Data.Vec renaming (Vec→FinVec to vec ; FinVec→Vec to fin)
+open VecPath renaming (decode to vec≡)
+
+elim0
+  : ∀ {ℓ} {P : Fin 0 → Type ℓ}
+  → (f0 : Fin 0) → P f0
+elim0 ()
+
+pelim0
+  : ∀ {ℓ} {P : Type ℓ} {l r : Fin 0 → P}
+  → l ≡ r
+pelim0 = funExt elim0
+
+elim1
+  : ∀ {ℓ} {P : Fin 1 → Type ℓ}
+  → P zero
+  → (f1 : Fin 1) → P f1
+elim1 p0 zero = p0
+
+pelim1
+  : ∀ {ℓ} {P : Type ℓ} {l r : Fin 1 → P}
+  → l zero ≡ r zero
+  → l ≡ r
+pelim1 p0 = funExt (elim1 p0)
+
+elim2
+  : ∀ {ℓ} {P : Fin 2 → Type ℓ}
+  → P zero
+  → P one
+  → (f2 : Fin 2) → P f2
+elim2 p0 p1 zero = p0
+elim2 p0 p1 one = p1
+
+pelim2
+  : ∀ {ℓ} {P : Type ℓ} {l r : Fin 2 → P}
+  → l zero ≡ r zero
+  → l one ≡ r one
+  → l ≡ r
+pelim2 p0 p1 = funExt (elim2 p0 p1)
+
+elim3
+  : ∀ {ℓ} {P : Fin 3 → Type ℓ}
+  → P zero
+  → P one
+  → P two
+  → (f3 : Fin 3) → P f3
+elim3 p0 p1 p2 zero = p0
+elim3 p0 p1 p2 one = p1
+elim3 p0 p1 p2 two = p2
+
+pelim3
+  : ∀ {ℓ} {P : Type ℓ} {l r : Fin 3 → P}
+  → l zero ≡ r zero
+  → l one ≡ r one
+  → l two ≡ r two
+  → l ≡ r
+pelim3 p0 p1 p2 = funExt (elim3 p0 p1 p2)
 
 record Sig : Type₁ where
   constructor [_,_]
@@ -181,8 +239,8 @@ data MonOp : Type where
   `unit `mult : MonOp
 
 MonAr : MonOp → Type
-MonAr `unit = ⊥
-MonAr `mult = Unit ⊎ Unit
+MonAr `unit = Fin 0
+MonAr `mult = Fin 2
 
 MonSig : Sig
 MonSig = [ MonOp , MonAr ]
@@ -191,26 +249,27 @@ data MonEq : Type where
   `assoc `unitl `unitr : MonEq
 
 MonFv : MonEq → Type
-MonFv `assoc = Unit ⊎ (Unit ⊎ Unit)
-MonFv `unitl = Unit
-MonFv `unitr = Unit
+MonFv `assoc = Fin 3
+MonFv `unitl = Fin 1
+MonFv `unitr = Fin 1
 
 MonEqSig : EqSig
 MonEqSig = [ MonEq , MonFv ]
 
 MonSysEq : SysEq MonSig MonEqSig
 MonSysEq `assoc =
-    node (`mult , λ { (inl _) → node (`mult , λ { (inl _) → var (inl tt) ; (inr _) → var (inr (inl tt)) }) ; (inr _) → var (inr (inr tt)) })
-  , node (`mult , λ { (inl _) → var (inl tt) ; (inr _) → node (`mult , λ { (inl _) → var (inr (inl tt)) ; (inr _) → var (inr (inr tt)) }) })
+    node (`mult , vec (node (`mult , vec (var zero ∷ var one ∷ [])) ∷ var two ∷ []))
+  , node (`mult , vec (var zero ∷ node (`mult , vec (var one ∷ var two ∷ [])) ∷ []))
 MonSysEq `unitr = 
-    node (`mult , λ { (inl _) → var tt ; (inr _) → node (`unit , λ ()) }) 
-  , var tt
+    node (`mult , vec (var zero ∷ node (`unit , vec []) ∷ []))
+  , var zero
 MonSysEq `unitl = 
-    node (`mult , S.rec (λ _ → node (`unit , λ ())) (λ _ → var tt) ) 
-  , var tt
+    node (`mult , vec (node (`unit , vec []) ∷ var zero ∷ []))
+  , var zero
 
 FreeMon : Type → Type
 FreeMon A = Free MonSig MonEqSig MonSysEq A
+
 variable
   A : Type
 
@@ -218,49 +277,106 @@ variable
 η = var
 
 ϵ : FreeMon A
-ϵ = node (`unit , λ ())
+ϵ = node (`unit , vec [])
 
 _⊗_ : FreeMon A → FreeMon A → FreeMon A
-m ⊗ n = node (`mult , λ { (inl _) → m ; (inr _) → n })
+m ⊗ n = node (`mult , vec (m ∷ n ∷ []))
 
 unitr : (m : FreeMon A) → m ⊗ ϵ ≡ m
-unitr m =
-    congS (λ z → node (`mult , z)) (funExt λ { (inl _) → refl ; (inr _) → congS (λ z → node (`unit , z)) (funExt λ ()) })
-  ∙ sat `unitr (λ _ → m)
+unitr {A = A} m = 
+    congS (λ z → node (`mult , z)) (pelim2 refl (congS (λ z → node (`unit , z)) pelim0))
+  ∙ sat `unitr (vec (m ∷ []))
 
 unitl : (m : FreeMon A) → ϵ ⊗ m ≡ m
 unitl m =
-    congS (λ z → node (`mult , z)) (funExt λ { (inl _) → congS (λ z → node (`unit , z)) (funExt λ ()) ; (inr _) → refl })
-  ∙ sat `unitl λ _ → m
+    congS (λ z → node (`mult , z)) (pelim2 (congS (λ z → node (`unit , z)) pelim0) refl)
+  ∙ sat `unitl (vec (m ∷ []))
 
 assoc : (m n o : FreeMon A) → (m ⊗ n) ⊗ o ≡ m ⊗ (n ⊗ o)
 assoc m n o =
-    congS (λ z → node (`mult , z)) (funExt λ { (inl _) → congS (λ z → node (`mult , z)) (funExt λ { (inl _) → refl ; (inr _) → refl }) ; (inr _) → refl })
-  ∙ sat `assoc (λ { (inl _) → m ; (inr (inl _)) → n ; (inr (inr _)) → o })
-  ∙ congS (λ z → node (`mult , z)) (funExt λ { (inl x) → refl ; (inr x) → congS (λ z → node (`mult , z)) (funExt (λ { (inl _) → refl ; (inr _) → refl })) })
+    congS (λ z → node (`mult , z)) (pelim2 (congS (λ z → node (`mult , z)) (pelim2 refl refl)) refl)
+  ∙ sat `assoc (vec (m ∷ n ∷ o ∷ []))
+  ∙ congS (λ z → node (`mult , z)) (pelim2 refl (congS (λ z → node (`mult , z)) (pelim2 refl refl)))
+
+postulate
+  TODO : ∀ {ℓ} (A : Type ℓ) → A
 
 evalFreeMon : {A : Type} (𝔅 : Alg MonSig) → (𝔅 ⊨ MonSysEq) → (A → 𝔅 .car) → FreeMon A → 𝔅 .car
 evalFreeMon 𝔅 s f (var x) = f x
 evalFreeMon 𝔅 s f (node (o , g)) = 𝔅 .alg (o , λ y → evalFreeMon 𝔅 s f (g y))
-evalFreeMon {A = A} 𝔅 s f (sat `assoc ρ i) = {!   !}
-evalFreeMon {A = A} 𝔅 s f (sat `unitl ρ i) = (congS (λ x → 𝔅 .alg (`mult , x)) (funExt λ {(inl y) → congS (λ x → 𝔅 .alg (`unit , x)) (funExt λ ()) ; (inr y) → refl}) ∙ s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt))) i
-    -- ({!   !} ∙ s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt))) i
-    -- where
-    --     lemma : 𝔅 .alg
-    --      (`mult ,
-    --       (λ y →
-    --          evalFreeMon 𝔅 s f
-    --          (indTree MonSig (MonEqSig .fv `unitl)
-    --           (λ _ → Free MonSig MonEqSig MonSysEq A) ρ
-    --           (λ { (o , g) r → node (o , r) })
-    --           (S.rec (λ z → node (`unit , (λ ()))) (λ _ → var tt) y))))
-    --         ≡ evalFreeMon 𝔅 s f (ρ tt)
-    --     lemma = cong (λ x → 𝔅 .alg (`mult , x)) (funExt λ
-    --         {(inl y) → cong (λ x → 𝔅 .alg (`unit , x)) (funExt λ ())
-    --         ; (inr y) → refl}) ∙ s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt))
+evalFreeMon {A = A} 𝔅 s f (sat `assoc ρ i) = 
+  {!!}
+evalFreeMon {A = A} 𝔅 s f (sat `unitl ρ i) =
+  hcomp (λ j → λ { (i = i0) → {!!} ; (i = i1) → s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ zero)) j }) 
+        (𝔅 .alg (`mult , {!!}))
 
-        -- cong (λ x → 𝔅 .alg (`mult , x)) {!   !} ∙ s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt))
-evalFreeMon 𝔅 s f (sat `unitr ρ i) = {!   !}
+  -- ( congS {x = λ y → evalFreeMon 𝔅 s f (indTree MonSig (MonEqSig .fv `unitl) {!!} {!!} {!!} {!!})} (λ z → 𝔅 .alg (`mult , z)) (funExt λ { zero → congS (λ z → 𝔅 .alg (`unit , z)) refl ; one → refl }) 
+  -- ∙ s `unitl λ _ → evalFreeMon 𝔅 s f (ρ zero)
+  -- ) i
+
+-- i = i0 ⊢ 𝔅 .alg
+--          (`mult ,
+--           (λ y →
+--              evalFreeMon 𝔅 s f
+--              (indTree MonSig (MonEqSig .fv `unitl)
+--               (λ _ → Free MonSig MonEqSig MonSysEq A) ρ
+--               (λ { (o , g) r → node (o , r) })
+--               (vec (node (`unit , vec []) ∷ var zero ∷ []) y))))
+-- i = i1 ⊢ evalFreeMon 𝔅 s f (ρ zero)
+
+  -- hcomp (λ j → λ { (i = i0) → 𝔅 .alg (`mult , {!!}) ; (i = i1) → evalFreeMon 𝔅 s f (ρ zero) }) 
+  --       (s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ zero)) i)
+
+evalFreeMon {A = A} 𝔅 s f (sat `unitr ρ i) = 
+  {!!}
+
+  -- hcomp (λ j → λ { (i = i0) → {!!} ; (i = i1) → s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt)) j }) 
+  --       (𝔅 .alg (`mult , (funExt
+  --                          (λ { (inl y) → congS (λ x → 𝔅 .alg (`unit , x)) (funExt λ ())
+  --                             ; (inr y) → refl
+  --                             }))
+  --                         i))
+
+-- -- funExt λ {(inl y) → congS (λ x → 𝔅 .alg (`unit , x)) (funExt λ ()) ; (inr y) → refl}) i
+
+--    hcomp (λ j → λ { (i = i0) → 𝔅 .alg (`mult , λ y → (λ {(inl y) → congS (λ x → 𝔅 .alg (`unit , x)) (funExt λ ()) ; (inr y) → refl}) y (~ j)) -- 
+--                     ; (i = i1) → evalFreeMon 𝔅 s f (ρ tt) }) 
+--          (s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt)) i)
+
+--   -- (𝔅 .alg
+--   --        (`mult ,
+--   --         (λ y →
+--   --            evalFreeMon 𝔅 s f
+--   --            (indTree MonSig (MonEqSig .fv `unitl)
+--   --             (λ _ → Free MonSig MonEqSig MonSysEq A) ρ
+--   --             (λ { (o , g) r → node (o , r) })
+--   --             (S.rec (λ z → node (`unit , (λ ()))) (λ _ → var tt) y))))
+
+--   --  ≡⟨ {!!} ⟩ 
+  
+--   --  {!!}
+
+--   --  ≡⟨ {!s `unitl (λ _ → evalFreeMon 𝔅 s f (ρ tt))!} ⟩ 
+  
+--   --    evalFreeMon 𝔅 s f (ρ tt)
+
+--   --  ∎) i
+
+--   -- (? ≡⟨  ⟩
+--   --  ? ≡⟨  ⟩
+--   --  ? ∎)
+
+-- evalFreeMon 𝔅 s f (sat `unitr ρ i) = {!   !}
 
 
--- algHomNat
+-- -- algHomNat
+
+-- test : ∀ {A : Type} (a b c : A) → (p : a ≡ b) → (q : b ≡ c) → a ≡ c
+-- test a b c p q i = 
+--   hcomp (λ j → λ { (i = i0) → a ; (i = i1) → q j })
+--         (p i)
+
+-- test2 : ∀ {A : Type} (a b c : A) → (p : a ≡ b) → (q : b ≡ c) → a ≡ c
+-- test2 a b c p q i = 
+--   hcomp (λ j → λ { (i = i0) → p (~ j) ; (i = i1) → c })
+--         (q i)
